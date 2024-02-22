@@ -17,7 +17,7 @@ pip install pip-system-certs
 ```python
 #It is strongly advised to use the line
 import pip_system_certs.wrapt_requests
-#Before the usage of this API to avoid requests being loaded
+#Before the usage of this API to avoid requests certificates  (causing 443 auth errors) being loaded
 import anaplan_api
 ```
 
