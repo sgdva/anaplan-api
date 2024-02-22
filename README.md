@@ -1,15 +1,23 @@
-*Note: This package is no longer actively maintained, and this repo has been publicly archived.*
+*Note: This package is fixed from the original one for typos and coding enhancements.*
 
 # anaplan-api
 
 Anaplan-API is a Python library wrapper for [Anaplan Bulk API](https://anaplanbulkapi20.docs.apiary.io/) and [Anaplan Authentication API](https://anaplanauthentication.docs.apiary.io/).
 
 ## Installation
-
+If you are on a corporate environment you need to install:
+pip install pip-system-certs
+[S.O. Thread](https://stackoverflow.com/a/57053415/3221380) 
+[pip-system-certs project](https://gitlab.com/alelec/pip-system-certs)
+It is strongly advised to use the line
+import pip_system_certs.wrapt_requests
+before the usage of this tool to avoid requests being loaded
 Use the package manager [pip](https://pypi.org/project/anaplan-api/) to install Anaplan-API.
+
 
 ```bash
 pip3 install anaplan_api
+You may overwrite the original install of that one with the scripts of this one, or directly use this package.
 ```
 
 ## Usage
@@ -42,22 +50,11 @@ if __name__ == '__main__':
 ```
 
 ## Known Issues
-This library currently uses PyJKS library for handling Java Keystore files. This project does not appear to be actively developed, and there is a known error installing pycryptodomex and twofish - both dependencies for PyJKS. The core files required from this library are:
+This library currently uses PyJKS library for handling Java Keystore files. I omitted those since they create issues.
 
-- jks.py
-- rfc2898.py
-- sun_crypto.py
-- util.py
-
-### PyJKS Requirements
-- javaobj-py3
-- pyasn1
-- pyasn1_modules
-
-You can simply download, remove the unnecessary files, and drop the jks folder in your site-package directory to work around the error.
 
 ## Contributing
-Pull requests are welcome. For major changes, please open an issue first to discuss what you would like to change.
+Feel free to fork it or use it.
 
 ## License
 [BSD](https://opensource.org/licenses/BSD-2-Clause)
