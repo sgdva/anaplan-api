@@ -6,12 +6,19 @@ Anaplan-API is a Python library wrapper for [Anaplan Bulk API](https://anaplanbu
 
 ## Installation
 If you are on a corporate environment you need to install:
+
 pip install pip-system-certs
+
 [S.O. Thread](https://stackoverflow.com/a/57053415/3221380) 
+
 [pip-system-certs project](https://gitlab.com/alelec/pip-system-certs)
+
 It is strongly advised to use the line
+
 import pip_system_certs.wrapt_requests
+
 before the usage of this tool to avoid requests being loaded
+
 Use the package manager [pip](https://pypi.org/project/anaplan-api/) to install Anaplan-API.
 
 
