@@ -59,7 +59,7 @@ if __name__ == '__main__':
 ```
 
 ## Known Issues
-This library currently uses PyJKS library for handling Java Keystore files. I omitted those since they create issues.
+This library currently uses PyJKS library for handling Java Keystore files. I omitted those since no JKS solution at this time.
 
 
 ## Contributing
