@@ -13,19 +13,21 @@ pip install pip-system-certs
 
 [pip-system-certs project](https://gitlab.com/alelec/pip-system-certs)
 
-It is strongly advised to use the line
 
+```python
+#It is strongly advised to use the line
 import pip_system_certs.wrapt_requests
-
-before the usage of this tool to avoid requests being loaded
+#Before the usage of this API to avoid requests being loaded
+import anaplan_api
+```
 
 Use the package manager [pip](https://pypi.org/project/anaplan-api/) to install Anaplan-API.
 
 
 ```bash
 pip3 install anaplan_api
-You may overwrite the original install of that one with the scripts of this one, or directly use this package.
 ```
+You may overwrite the original install of that one with the scripts of this one, or directly use this package.
 
 ## Usage
 
