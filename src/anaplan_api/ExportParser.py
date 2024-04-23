@@ -20,16 +20,23 @@ class ExportParser(Parser):
 
 	def __init__(self, conn: AnaplanConnection, results: dict, url: str):
 		super().__init__(conn=conn, results=results, url=url)
+		ExportParser.results = []
 		ExportParser.results.append(ExportParser.parse_response(conn, results, url))
+		
+	
 
 	@staticmethod
 	def get_results() -> List[ParserResponse]:
 		"""Get the list of task result details
 
-		:return: Formatted export task results
+		:return: Exported file as str
 		:rtype: List[ParserResponse]
 		"""
-		return ExportParser.results
+		#return ExportParser.results
+		if ExportParser.results[0].get_task_detail() == "File export completed.":
+			return ExportParser.results[0].get_export_file()
+		else:
+			return "Err01ExportParserget_results: Export was unable to be completed. Further details: " + ExportParser.results[0].get_task_detail()
 
 	@staticmethod
 	def parse_response(conn, results, url) -> ParserResponse:
@@ -64,8 +71,6 @@ class ExportParser(Parser):
 			if 'objectId' in results['result']:
 				object_id = results['result']['objectId']
 				file_contents = anaplan.get_file(conn, object_id)
-
 				logger.info(f"The requested job is {job_status}")
 				logger.info(f"Failure Dump Available: {failure_dump}, Successful: {success_report}")
-
 				return ParserResponse("File export completed.", file_contents, False, edf)

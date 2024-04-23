@@ -45,4 +45,5 @@ class ProcessTask(TaskFactory):
 		:return: Initialized object for parsing task results
 		:rtype: Parser
 		"""
+		
 		return ProcessParser(conn, results, url)

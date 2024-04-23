@@ -14,9 +14,9 @@ logger = logging.getLogger(__name__)
 
 class ImportParser(Parser):
 	results: List[ParserResponse]
-
-	def __init__(self, results: dict, url: str):
-		super().__init__(results=results, url=url)
+	def __init__(self, results: dict, url: str, conn):
+		super().__init__(conn=conn,results=results, url=url)
+		ImportParser.results = []
 		ImportParser.results.append(ImportParser.parse_response(results, url))
 
 	@staticmethod
@@ -26,6 +26,8 @@ class ImportParser(Parser):
 		:return: Object containing parsed task results and related data
 		:rtype: List[ParserResponse]
 		"""
+		#print("going to return import parser results")
+		#print(ImportParser.results)
 		return ImportParser.results
 
 	@staticmethod
@@ -46,7 +48,6 @@ class ImportParser(Parser):
 		msg = []
 
 		logger.debug("Parsing import details")
-
 		job_status = results['currentStep']
 		failure_dump = bool(strtobool(str(results['result']['failureDumpAvailable']).lower()))
 
@@ -55,7 +56,7 @@ class ImportParser(Parser):
 		else:
 			# IF failure dump is available download
 			if failure_dump:
-				edf = Parser.get_dump(''.join([url, "/dump"]))
+				edf = Parser.get_dump(Parser,''.join([url, "/dump"]))
 
 			success_report = str(results['result']['successful'])
 

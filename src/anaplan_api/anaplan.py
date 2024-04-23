@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 # the remaining variables to anaplan_auth to generate the authorization for Anaplan API
 # ===========================================================================
 def generate_authorization(auth_type: str = "Basic", email: str = None, password: str = None,
-                           private_key: Union[bytes, str] = None, cert: Union[bytes, str] = None) -> AuthToken:
+                           private_key: Union[bytes, str] = None, cert: Union[bytes, str] = None,TxtPassword: str ="",TxtFilePathBin: str ="",TxtFilePathkey: str ="") -> AuthToken:
     """Generate an Anaplan AuthToken object
 
     :param auth_type: Basic or Certificate authentication
@@ -35,6 +35,12 @@ def generate_authorization(auth_type: str = "Basic", email: str = None, password
     :param password: Anaplan password for Basic auth
     :param private_key: Private key string or path to key file
     :param cert: Public certificate string or path to file
+    :param TxtPassword: If the key is password protected and you have a string to encrypt it
+    :param TxtFilePathBin: If the key is password protected and you have the files with the encrypted one
+    :type TxtPassword: string to .bin path
+    :param TxtFilePathkey: If the key is password protected and you have the files with the encrypted one
+    :type TxtPassword: string to .key path
+    :type TxtPassword: string
     :return: AnaplanAuthToken value and expiry time in epoch
     :rtype: AuthToken
     """
@@ -46,7 +52,8 @@ def generate_authorization(auth_type: str = "Basic", email: str = None, password
     elif auth_type.lower() == 'certificate' and cert and private_key:
         cert_auth = CertificateAuthentication()
         header_string = cert_auth.auth_header(cert)
-        post_data = cert_auth.generate_post_data(private_key)
+        post_data = cert_auth.generate_post_data(private_key,TxtPassword,TxtFilePathBin,TxtFilePathkey)
+        #post_data = cert_auth.generate_post_data(private_key)
         return cert_auth.authenticate(cert_auth.auth_request(header_string, post_data))
     else:
         if (email and password) or (cert and private_key):
@@ -57,7 +64,7 @@ def generate_authorization(auth_type: str = "Basic", email: str = None, password
             raise InvalidAuthenticationError("Email address and password or certificate and key must not be blank")
 
 
-def file_upload(conn: AnaplanConnection, file_id: str, chunk_size: int, data: str) -> None:
+def file_upload(conn: AnaplanConnection, file_id: str, chunk_size: int, data: str,IsStrToUpload=False,IsReturnLog=False):# -> None:
     """Upload a file to Anaplan model
 
     :param conn: AnaplanConnection object which contains AuthToken object, workspace ID, and model ID
@@ -65,11 +72,13 @@ def file_upload(conn: AnaplanConnection, file_id: str, chunk_size: int, data: st
     :param chunk_size: Desired chunk size of the upload request between 1-50
     :param data: Data to load, either path to local file or string
     """
-
-    file = UploadFactory(data)
-    uploader = file.get_uploader(conn, file_id)
-    uploader.upload(chunk_size, data)
-
+    file = UploadFactory(data,IsStrToUpload)
+    uploader = file.get_uploader(conn, file_id,IsStrToUpload)
+    if IsReturnLog==True: # 1. if IsReturnLog==True
+        TxtLog = uploader.upload(chunk_size, data,IsReturnLog=IsReturnLog)
+        return TxtLog
+    else: # 1. if IsReturnLog==True
+        uploader.upload(chunk_size, data)
 
 def execute_action(conn: AnaplanConnection, action_id: str, retry_count: int, mapping_params: dict = None) \
         -> List[ParserResponse]:
@@ -85,12 +94,12 @@ def execute_action(conn: AnaplanConnection, action_id: str, retry_count: int, ma
 
     generator = TaskFactoryGenerator(action_id[:3])
     factory = generator.get_factory()
-
     action = factory.get_action(conn=conn, action_id=action_id, retry_count=retry_count, mapping_params=mapping_params)
     task = action.execute()
     parser = factory.get_parser(conn=conn, results=task.get_results(), url=task.get_url())
+    #task_results = parser.get_results()
+    
     task_results = parser.get_results()
-
     return task_results
 
 
@@ -108,7 +117,6 @@ def get_list(conn: AnaplanConnection, resource: str) -> AnaplanResource:
     :return: Detailed list of the requested resource
     :rtype: AnaplanResource
     """
-
     resources = Resources(conn=conn, resource=resource)
     resources_list = resources.get_resources()
     resource_parser = ResourceParserList()

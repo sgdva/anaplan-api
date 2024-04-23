@@ -1,6 +1,7 @@
+import json
 class TaskResponse:
 
-	def __init__(self, results: dict, url: str):
+	def __init__(self, results: dict, url: str,jsongot:json):
 		"""
 		:param results: JSON results for a task
 		:type results: dict
@@ -9,6 +10,7 @@ class TaskResponse:
 		"""
 		self._results = results
 		self._url = url
+		self._jsongot=jsongot
 
 	def get_results(self) -> dict:
 		"""Get JSON results
@@ -25,3 +27,10 @@ class TaskResponse:
 		:rtype: str
 		"""
 		return self._url
+	def get_jsongot(self) -> str:
+		"""Get the JSON of the specified task
+
+		:return: JSON of the task
+		:rtype: JSON
+		"""
+		return self._jsongot	

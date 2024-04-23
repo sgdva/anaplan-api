@@ -41,7 +41,7 @@ class Parser(object):
 		:param url: URL of the Anaplan action task
 		:type url: str
 		"""
-		self._authorization = conn.get_auth().get_auth_token()
+		Parser._authorization = conn.get_auth().get_auth_token()
 		Parser._results = Parser.parse_response(conn, results, url)
 
 	@staticmethod
@@ -64,16 +64,18 @@ class Parser(object):
 		:return: Generic response for failed tasks.
 		:rtype: ParserResponse
 		"""
+		error_message = ""
 		if 'result' in results:
 			if 'details' in results['result']:
 				for i in range(0, len(results['result']['details'])):
-					if 'localMessageText' in results['result']['details'][i]['localMessageText']:
-						error_message = str(results['result']['details'][i]['localMessageText'])
-						logger.error(f"The task has failed to run due to an error: {error_message}")
-						return ParserResponse(f"The task has failed to run due to an error: {error_message}", "", False, pd.DataFrame())
+					#if 'localMessageText' in results['result']['details'][i]['localMessageText']:
+					error_message = str(results['result']['details'][i]['localMessageText']) if error_message =="" else error_message +"\n" + str(results['result']['details'][i]['localMessageText']) 
+				logger.error(f"The task has failed to run due to an error: {error_message}")
+				return ParserResponse(f"The task has failed to run due to an error: {error_message}", "", False, pd.DataFrame())
 
-	@staticmethod
-	def get_dump(url: str) -> DataFrame:
+	#@staticmethod
+	#def get_dump(url: str) -> DataFrame:
+	def get_dump(self,url: str) -> DataFrame:				
 		"""Fetches the failure dump of an Anaplan Import action if available
 
 		:param url: URL of the Anaplan failure dump
@@ -90,10 +92,9 @@ class Parser(object):
 		:return: Failure dump for an import action
 		:rtype: DataFrame
 		"""
-		authorization = Parser._authorization
-
+		#authorization = Parser._authorization
 		post_header = {
-			'Authorization': authorization,
+			'Authorization': self._authorization,
 			'Content-Type': 'application/json'
 		}
 
@@ -102,16 +103,23 @@ class Parser(object):
 
 		try:
 			logger.debug("Fetching error dump")
-			dump = requests.get(''.join([url, "/dump"]), headers=post_header, timeout=(5, 30)).text
+			#dump = requests.get(''.join([url, "/dump"]), headers=post_header, timeout=(5, 30)).text
+			dump = requests.get(''.join([url]), headers=post_header, timeout=(5, 30)).text
 			logger.debug("Error dump downloaded.")
 		except (HTTPError, ConnectionError, SSLError, Timeout, ConnectTimeout, ReadTimeout) as e:
 			logger.error(f"Error fetching error dump {e}", exc_info=True)
 
 		try:
 			edf = pd.read_csv(StringIO(dump))
+			#print("succesful dataframe errors")
+			#print(dump)
 		except (EmptyDataError, ParserError) as e:
 			logger.error(f"Error loading error dump to dataframe {e}", exc_info=True)
+			logger.error("Module: Parser.py")
+			logger.error(dump)
+			logger.error("Fix applied to continue exec: bad lines skipped, warning!")
+			edf = pd.read_csv(StringIO(dump),sep='|',error_bad_lines=False)
+			logger.error("Len of csv: " + str(len(edf)))
 		except ParserWarning as w:
 			logger.warning(f"Warning raised while parsing csv {w}", exc_info=True)
-
 		return edf

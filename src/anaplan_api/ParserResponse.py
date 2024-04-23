@@ -17,12 +17,14 @@ class ParserResponse:
     :type _error_dump_file: Optional[DataFrame]
     """
     _task_detail: str
+    _task_id: Optional[str]
     _export_file: Optional[str]
     _error_dump: bool
     _error_dump_file: Optional[DataFrame]
 
-    def __init__(self, task_detail: str, export_file: str, error_dump: bool, error_dump_file: DataFrame):
+    def __init__(self, task_detail: str, export_file: str, error_dump: bool, error_dump_file: DataFrame,task_id=""):
         self._task_detail = task_detail
+        self._task_id = task_id
         self._export_file = export_file
         self._error_dump = error_dump
         self._error_dump_file = error_dump_file
@@ -42,7 +44,21 @@ class ParserResponse:
         :rtype: bool
         """
         return self._error_dump
+    def __id__(self) -> str:
+        """Check the id, useful in processes
 
+        :return: the id of the object
+        :rtype: bool
+        """
+        return self._task_id
+    def get_task_id(self) -> str:
+        """Get id of task
+
+        :return: Task details
+        :rtype: str
+        """
+        return self._task_id
+    
     def get_task_detail(self) -> str:
         """Get overall task results
 

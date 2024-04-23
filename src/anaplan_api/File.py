@@ -36,7 +36,7 @@ class File:
     _url: str
     _chunk_count: int
 
-    def __init__(self, conn: AnaplanConnection, file_id: str):
+    def __init__(self, conn: AnaplanConnection, file_id: str,TxtPreviousLog="", IsReturnLog=False):
         """
         :param conn: Object with authentication, workspace, and model details
         :type conn: AnaplanConnection

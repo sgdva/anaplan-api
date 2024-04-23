@@ -46,5 +46,6 @@ from .Workspace import Workspace
 from .WorkspaceDetails import WorkspaceDetails
 
 
-__version__ = '0.1.28'
+__version__ = '0.1.29'
 __author__ = 'Jesse Wilson'
+__fork__ = 'Sergio Del Villar'

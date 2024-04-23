@@ -41,4 +41,4 @@ class ImportTask(TaskFactory):
 		:return: Instantiated Parser object for an import task
 		:rtype: ImportParser
 		"""
-		return ImportParser(results, url)
+		return ImportParser(results, url,conn)

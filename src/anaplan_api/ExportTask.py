@@ -8,7 +8,7 @@ from .util.Util import TaskParameterError
 
 class ExportTask(TaskFactory):
 	"""
-	Factory to generate an Anaplan import task
+	Factory to generate an Anaplan export task
 	"""
 
 	@staticmethod

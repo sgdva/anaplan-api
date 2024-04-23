@@ -105,7 +105,6 @@ class Action(object):
         :return: TaskResponse object with the details of the completed action
         """
         authorization = self._authorization
-
         post_header = {
             'Authorization': authorization,
             'Content-Type': 'application/json'
@@ -117,8 +116,7 @@ class Action(object):
             url = ''.join(
                 [self.base_url, self.workspace, "/models/", self.model, self._action_type[self.action_id[:3]],
                  self.action_id, "/tasks"])
-
-        if url is not "":
+        if url != "":
             task_id = self.post_task(url, post_header)
             return self.check_status(url, task_id)
         else:
@@ -170,13 +168,17 @@ class Action(object):
         }
         status = ""
         status_url = ''.join([url, "/", task_id])
-
+        #print("checking status")
+        #print(url)
+        #print(task_id)
         while True:
             try:
                 get_status = json.loads(requests.get(status_url, headers=post_header, timeout=(5, 30)).text)
+                #print(get_status)
             except (HTTPError, ConnectionError, SSLError, Timeout, ConnectTimeout, ReadTimeout) as e:
                 logger.error(f"Error getting result for task {e}", exc_info=True)
                 raise Exception(f"Error getting result for task {e}")
+            #print("going to check the JSON for status")
             if 'task' in get_status:
                 if 'taskState' in get_status['task']:
                     status = get_status['task']['taskState']
@@ -184,5 +186,4 @@ class Action(object):
                 results = get_status['task']
                 break
             sleep(1)  # Wait 1 seconds before continuing loop
-
-        return TaskResponse(results=results, url=status_url)
+        return TaskResponse(results=results, url=status_url,jsongot=results)

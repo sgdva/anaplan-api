@@ -23,14 +23,15 @@ class ProcessParser(Parser):
         super().__init__(conn=conn, results=results, url=url)
         ProcessParser.results = ProcessParser.parse_response(conn, results, url).copy()
 
-    @staticmethod
-    def get_results() -> List[ParserResponse]:
+    #@staticmethod
+    def get_results(self) -> List[ParserResponse]:
         """Get task results
 
         :return: Process task results
         :rtype: List[ParserResponse]
         """
-        return ProcessParser.results
+        #return ProcessParser.results
+        return self.results
 
     @staticmethod
     def parse_response(conn: AnaplanConnection, results: dict, url: str) -> List[ParserResponse]:
@@ -45,7 +46,6 @@ class ProcessParser(Parser):
         :return: Friendly process task results
         :rtype: List[ParserResponse]
         """
-
         job_status = results['currentStep']
 
         # If process failed, return generic failure response.
@@ -57,7 +57,8 @@ class ProcessParser(Parser):
             logger.info("Process completed.")
             # nestedResults key only present in process task results
             if 'nestedResults' in results['result']:
-                nested_details = [ParserResponse]
+                #nested_details = [ParserResponse]
+                nested_details = []
 
                 logger.debug("Parsing nested results.")
                 for nestedResults in results['result']['nestedResults']:
@@ -87,18 +88,20 @@ class ProcessParser(Parser):
         edf = pd.DataFrame()
         msg = []
         export_file = ""
-
+        #print("straight JSON")
+        #print(results)
         # Regex pattern for hierarchy parsing
         regex = re.compile('hierarchyRows.+')
 
         # Check whether the sub-task generated a failure dump
         failure_dump = bool(strtobool(str(results['failureDumpAvailable']).lower()))
         successful = results['successful']  # Sub-task successful status
-
+        #print("Checking success or fail")
         if failure_dump:
-            edf = super().get_dump(''.join([url, '/dumps/', object_id]))
-
+            edf = Parser(conn,results,url).get_dump(''.join([url, '/dumps/', object_id]))
+        #print("Checking success or fail")
         if 'details' in results:
+            #print("got details")
             for i in range(0, len(results['details'])):
                 # Import specific parsing
                 if 'localMessageText' in results['details'][i]:
@@ -117,5 +120,6 @@ class ProcessParser(Parser):
                     if results['details'][i]['type'] == "exportSucceeded":
                         export_file = anaplan.get_file(conn, object_id)
 
-        logger.debug(f"Error dump available: {failure_dump}, Sub-task {object_id} successful: {successful}")
-        return ParserResponse('\n'.join(msg), export_file, failure_dump, edf)
+        #logger.debug(f"Error dump available: {failure_dump}, Sub-task {object_id} successful: {successful}")
+        logger.info(f"Error dump available: {failure_dump}, Sub-task {object_id} successful: {successful}")
+        return ParserResponse('\n'.join(msg), export_file, failure_dump, edf,str(results['objectId']))

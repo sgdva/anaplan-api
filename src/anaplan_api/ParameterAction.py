@@ -37,7 +37,7 @@ class ParameterAction(Action):
 			url = ''.join([super().get_url(), "/", super().get_workspace(), "/models/", super().get_model(),
 			               "/imports/", super().get_action(), "/tasks"])
 
-			if url is not "":
+			if url != "":
 				task_id = ParameterAction.post_task(self, url, post_header, ParameterAction.build_request_body(self))
 				return super().check_status(url, task_id)
 			else:
