@@ -4,20 +4,20 @@
 # Description:    Library to implement Anaplan API to get lists of model resources, upload files to Anaplan server,
 #                 download files from Anaplan server, and execute actions.
 # ===============================================================================
+from __future__ import annotations
 import logging
-from typing import List, Union
-from .AnaplanConnection import AnaplanConnection
-from .ParserResponse import ParserResponse
-from .BasicAuthentication import BasicAuthentication
-from .CertificateAuthentication import CertificateAuthentication
-from .FileDownload import FileDownload
-from .TaskFactoryGenerator import TaskFactoryGenerator
+from typing import TYPE_CHECKING
+from .authentication.AuthorizationManager import AuthorizationManager
+from .UploadFactory import UploadFactory
+from .TaskController import TaskController
 from .Resources import Resources
 from .ResourceParserList import ResourceParserList
-from .AnaplanResourceList import AnaplanResource
-from .AuthToken import AuthToken
-from .UploadFactory import UploadFactory
-from .util.Util import InvalidAuthenticationError
+from .FileDownload import FileDownload
+
+if TYPE_CHECKING:
+    from .models.ActionResponse import ActionResponse
+    from .models.AnaplanConnection import AnaplanConnection
+    from .models.AnaplanResourceList import AnaplanResource
 
 logger = logging.getLogger(__name__)
 
@@ -26,62 +26,44 @@ logger = logging.getLogger(__name__)
 # This function reads the authentication type, Basic or Certificate, then passes
 # the remaining variables to anaplan_auth to generate the authorization for Anaplan API
 # ===========================================================================
-def generate_authorization(auth_type: str = "Basic", email: str = None, password: str = None,
-                           private_key: Union[bytes, str] = None, cert: Union[bytes, str] = None,TxtPassword: str ="",TxtFilePathBin: str ="",TxtFilePathkey: str ="") -> AuthToken:
-    """Generate an Anaplan AuthToken object
-
-    :param auth_type: Basic or Certificate authentication
-    :param email: Anaplan email address for Basic auth
-    :param password: Anaplan password for Basic auth
-    :param private_key: Private key string or path to key file
-    :param cert: Public certificate string or path to file
-    :param TxtPassword: If the key is password protected and you have a string to encrypt it
-    :param TxtFilePathBin: If the key is password protected and you have the files with the encrypted one
-    :type TxtPassword: string to .bin path
-    :param TxtFilePathkey: If the key is password protected and you have the files with the encrypted one
-    :type TxtPassword: string to .key path
-    :type TxtPassword: string
-    :return: AnaplanAuthToken value and expiry time in epoch
-    :rtype: AuthToken
+def authorize(method: str, **kwargs) -> AuthorizationManager:
     """
-
-    if auth_type.lower() == 'basic' and email and password:
-        basic = BasicAuthentication()
-        header_string = basic.auth_header(email, password)
-        return basic.authenticate(basic.auth_request(header_string))
-    elif auth_type.lower() == 'certificate' and cert and private_key:
-        cert_auth = CertificateAuthentication()
-        header_string = cert_auth.auth_header(cert)
-        post_data = cert_auth.generate_post_data(private_key,TxtPassword,TxtFilePathBin,TxtFilePathkey)
-        #post_data = cert_auth.generate_post_data(private_key)
-        return cert_auth.authenticate(cert_auth.auth_request(header_string, post_data))
-    else:
-        if (email and password) or (cert and private_key):
-            logger.error(f"Invalid authentication method: {auth_type}")
-            raise InvalidAuthenticationError(f"Invalid authentication method: {auth_type}")
-        else:
-            logger.error("Email address and password or certificate and key must not be blank")
-            raise InvalidAuthenticationError("Email address and password or certificate and key must not be blank")
+    :param method: Authorization method
+    :type method: str
+    :param kwargs: Additional arguments for the authorization
+    :return: Class to manage authorization flow, hold the AuthToken object,
+            and handle automatic refresh of the token.
+    :rtype: AuthorizationManager
+    """
+    return AuthorizationManager(method, **kwargs)
 
 
-def file_upload(conn: AnaplanConnection, file_id: str, chunk_size: int, data: str,IsStrToUpload=False,IsReturnLog=False):# -> None:
+def file_upload(conn: AnaplanConnection, file_id: str, chunk_size: int, data: str,IsStrToUpload=False,IsReturnLog=False): #-> None:
     """Upload a file to Anaplan model
 
     :param conn: AnaplanConnection object which contains AuthToken object, workspace ID, and model ID
     :param file_id: ID of the file in Anaplan
     :param chunk_size: Desired chunk size of the upload request between 1-50
+    :param IsStrToUpload: If the data to upload is a stringIO object instead of a file.
+    :param IsReturnLog: If you need the log to know if the update process was able to be performed or not.
     :param data: Data to load, either path to local file or string
     """
+
     file = UploadFactory(data,IsStrToUpload)
     uploader = file.get_uploader(conn, file_id,IsStrToUpload)
     if IsReturnLog==True: # 1. if IsReturnLog==True
         TxtLog = uploader.upload(chunk_size, data,IsReturnLog=IsReturnLog)
         return TxtLog
     else: # 1. if IsReturnLog==True
-        uploader.upload(chunk_size, data)
-
-def execute_action(conn: AnaplanConnection, action_id: str, retry_count: int, mapping_params: dict = None) \
-        -> List[ParserResponse]:
+        uploader.upload(chunk_size, data)    
+        
+def execute_action(
+    conn: AnaplanConnection,
+    action_id: str,
+    retry_count: int,
+    mapping_params: dict = None,
+    IsErrorDumpNeeded:bool=True
+) -> ActionResponse:
     """Execute a specified Anaplan action
 
     :param conn: AnaplanConnection object which contains AuthToken object, workspace ID, and model ID
@@ -89,18 +71,14 @@ def execute_action(conn: AnaplanConnection, action_id: str, retry_count: int, ma
     :param retry_count: Number of times to attempt to retry if an error occurs executing an action
     :param mapping_params: Optional dictionary of import mapping parameters
     :return: Detailed results of the requested action task.
-    :rtype: List[ParserResponse]
+    :param IsErrorDumpNeeded: Optional if you do not need the error dump dataframes that the process may bring.
+    :return: A dataframe per error dump found by accessing .error_dumps.
+    :rtype: ActionResponse
     """
 
-    generator = TaskFactoryGenerator(action_id[:3])
-    factory = generator.get_factory()
-    action = factory.get_action(conn=conn, action_id=action_id, retry_count=retry_count, mapping_params=mapping_params)
-    task = action.execute()
-    parser = factory.get_parser(conn=conn, results=task.get_results(), url=task.get_url())
-    #task_results = parser.get_results()
-    
-    task_results = parser.get_results()
-    return task_results
+    controller = TaskController(conn, action_id, retry_count, mapping_params,IsErrorDumpNeeded=IsErrorDumpNeeded)
+
+    return controller.response
 
 
 # ===========================================================================
@@ -117,6 +95,7 @@ def get_list(conn: AnaplanConnection, resource: str) -> AnaplanResource:
     :return: Detailed list of the requested resource
     :rtype: AnaplanResource
     """
+
     resources = Resources(conn=conn, resource=resource)
     resources_list = resources.get_resources()
     resource_parser = ResourceParserList()

@@ -6,8 +6,9 @@
 # Output:			Anaplan JWT and token expiry time
 # ===============================================================================
 import logging
-import requests
-from requests.exceptions import HTTPError, ConnectionError, SSLError, Timeout, ConnectTimeout, ReadTimeout
+import io
+import json
+import gzip
 from .File import File
 
 logger = logging.getLogger(__name__)
@@ -15,118 +16,114 @@ logger = logging.getLogger(__name__)
 
 class Upload(File):
 
-	def get_base_url(self) -> str:
-		"""Get base URL for Anaplan API
+    @property
+    def endpoint(self) -> str:
+        """Get base URL for Anaplan API
 
-		:return: Anaplan API base URL
-		:rtype: str
-		"""
-		return super().get_base_url()
+        :return: Anaplan API base URL
+        :rtype: str
+        """
+        return super().endpoint
 
-	def get_workspace(self) -> str:
-		"""Get the workspace ID
+    @property
+    def workspace(self) -> str:
+        """Get the workspace ID
 
-		:return: Workspace ID for the specified model
-		:rtype: str
-		"""
-		return super().get_workspace()
+        :return: Workspace ID for the specified model
+        :rtype: str
+        """
+        return super().workspace
 
-	def get_model(self) -> str:
-		"""Get the model ID
+    @property
+    def model(self) -> str:
+        """Get the model ID
 
-		:return: ID of the specified model
-		:rtype: str
-		"""
-		return super().get_model()
+        :return: ID of the specified model
+        :rtype: str
+        """
+        return super().model
 
-	def get_file_id(self) -> str:
-		"""Get the ID of the specified file
+    @property
+    def file_id(self) -> str:
+        """Get the ID of the specified file
 
-		:return: ID of the specified file
-		:rtype: str
-		"""
-		return super().get_file_id()
+        :return: ID of the specified file
+        :rtype: str
+        """
+        return super().file_id
 
-	def upload(self, chunk_size: int, file: str):
-		pass
+    def upload(self, chunk_size: int, file: str):
+        pass
 
-	def file_metadata(self, url: str) -> bool:
-		"""Update file metadata in Anaplan model as first step in file upload process
+    def file_metadata(self, endpoint: str) -> bool:
+        """Update file metadata in Anaplan model as first step in file upload process
 
-		:param url: URL of the specified file
-		:raises HTTPError: HTTP error code
-		:raises ConnectionError: Network-related errors
-		:raises SSLError: Server-side SSL certificate errors
-		:raises Timeout: Request timeout errors
-		:raises ConnectTimeout: Timeout error when attempting to connect
-		:raises ReadTimeout: Timeout error waiting for server response
-		:return: Whether metadata was successfully updated
-		:rtype: bool
-		"""
-		authorization = super().get_connection().get_auth().get_auth_token()
+        :param endpoint: URL of the specified file
+        :raises Exception: Exception from RequestHandler exception group
+        :return: Whether metadata was successfully updated
+        :rtype: bool
+        """
+        #authorization = super().connection.authorization.token_value
+        authorization = super().connection.authorization._auth_token._token_value
+        file_id = super().file_id
 
-		file_id = super().get_file_id()
+        post_header = {
+            "Authorization": authorization,
+            "Content-Type": "application/json",
+        }
 
-		post_header = {
-						"Authorization": authorization,
-						"Content-Type": "application/json"
-			}
+        stream_metadata = {"id": file_id, "chunkCount": -1}
 
-		stream_metadata = {
-							"id": file_id,
-							"chunkCount": -1
-			}
+        try:
+            logger.debug("Updating file metadata.")
+            meta_post = super().handler.make_request(
+                endpoint, "POST", headers=post_header, data=json.dumps(stream_metadata)
+            )
+            logger.debug("Complete!")
+        except Exception as e:
+            logger.error(f"Error setting metadata {e}", exc_info=True)
+            raise Exception(f"Error setting metadata {e}")
 
-		meta_post = None
-		try:
-			logger.debug("Updating file metadata.")
-			meta_post = requests.post(url, headers=post_header, json=stream_metadata, timeout=(5, 30))
-			logger.debug("Complete!")
-		except (HTTPError, ConnectionError, SSLError, Timeout, ConnectTimeout, ReadTimeout) as e:
-			logger.error(f"Error setting metadata {e}", exc_info=True)
-			raise Exception(f"Error setting metadata {e}")
+        return True
 
-		if meta_post.ok:
-			return True
-		else:
-			return False
+    def file_data(self, url: str, chunk_num: int, data: str) -> bool:
+        """Upload data chunk to the specified file
 
-	def file_data(self, url: str, chunk_num: int, data: str) -> bool:
-		"""Upload data chunk to the specified file
+        :param url: URL of the  specified file
+        :type url: str
+        :param chunk_num: ID of the chunk being uploaded
+        :type chunk_num: int
+        :param data: Data to upload
+        :type data: str
+        :raises Exception: Exception from RequestHandler exception group
+        :return: Whether file data upload was successful
+        :rtype: bool
+        """
 
-		:param url: URL of the  specified file
-		:type url: str
-		:param chunk_num: ID of the chunk being uploaded
-		:type chunk_num: int
-		:param data: Data to upload
-		:type data: str
-		:raises HTTPError: HTTP error code
-		:raises ConnectionError: Network-related errors
-		:raises SSLError: Server-side SSL certificate errors
-		:raises Timeout: Request timeout errors
-		:raises ConnectTimeout: Timeout error when attempting to connect
-		:raises ReadTimeout: Timeout error waiting for server response
-		:return: Whether file data upload was successful
-		:rtype: bool
-		"""
+        #authorization = super().connection.authorization.token_value
+        authorization = super().connection.authorization._auth_token._token_value
 
-		authorization = super().get_connection().get_auth().get_auth_token()
+        put_header = {
+            "Authorization": authorization,
+            "Content-Type": "application/octet-stream",
+        }
 
-		put_header = {
-						"Authorization": authorization,
-						"Content-Type": "application/octet-stream"
-			}
+        try:
+            logger.debug(f"Attempting to upload chunk {chunk_num + 1}")
+            stream_upload = super().handler.make_request(
+                url, "PUT", headers=put_header, data=data
+            )
+            logger.debug(f"Chunk {chunk_num + 1} uploaded successfully.")
+        except Exception as e:
+            logger.error(f"Error uploading chunk {chunk_num + 1}, {e}", exc_info=True)
+            raise Exception(f"Error uploading chunk {chunk_num + 1}, {e}")
 
-		stream_upload = None
-		try:
-			logger.debug(f"Attempting to upload chunk {chunk_num + 1}")
-			stream_upload = requests.put(url, headers=put_header, data=data, timeout=(5, 30))
-			logger.debug(f"Chunk {chunk_num + 1} uploaded successfully.")
-		except (HTTPError, ConnectionError, SSLError, Timeout, ConnectTimeout, ReadTimeout) as e:
-			logger.error(f"Error uploading chunk {chunk_num + 1}, {e}", exc_info=True)
-			raise Exception(f"Error uploading chunk {chunk_num + 1}, {e}")
+        return True
 
-		if stream_upload.ok:
-			return True
-		else:
-			return False
+    @staticmethod
+    def compress_data(upload_data: bytes):
+        output = io.BytesIO()
+        with gzip.GzipFile(fileobj=output, mode="wb") as gz_stream:
+            gz_stream.write(upload_data)
+        compressed_data = output.getvalue()
+        return compressed_data

@@ -3,16 +3,18 @@
 # @author:        Jesse Wilson (Anaplan Asia Pte Ltd)
 # Description:    Base class responsible for running tasks in an Anaplan model
 # ===============================================================================
+from __future__ import annotations
+from typing import Optional, TYPE_CHECKING
 import logging
-import requests
 import json
 from time import sleep
-from typing import Optional
-from requests.exceptions import HTTPError, ConnectionError, SSLError, Timeout, ConnectTimeout, ReadTimeout
-from .AnaplanConnection import AnaplanConnection
-from .TaskResponse import TaskResponse
-from .util.AnaplanVersion import AnaplanVersion
-from .util.Util import MappingParameterError, UnknownTaskTypeError
+from .util.RequestHandler import RequestHandler
+from .models.TaskResponse import TaskResponse
+from .models.AnaplanVersion import AnaplanVersion
+from .util.Util import MappingParameterError, UnknownTaskTypeError, RequestFailedError
+
+if TYPE_CHECKING:
+    from .models.AnaplanConnection import AnaplanConnection
 
 logger = logging.getLogger(__name__)
 
@@ -21,10 +23,14 @@ class Action(object):
     """
     Action represents an instance of an Anaplan action.
 
+    :param _action_type: Mapping of action ID prefixes to the name of the action type
+    :type _action_type: dict
+    :param handler: Class for sending API requests
+    :type handler: RequestHandler
     :param _authorization: Authorization header for API requests
     :type authorization: str
     :param workspace: ID of the Anaplan workspace
-    :type worksapce: str
+    :type workspace: str
     :param model: ID of the Anaplan model
     :type model: str
     :param action_id: ID of the Anaplan action
@@ -33,97 +39,106 @@ class Action(object):
     :type retry_count: int
     :param mapping_params: Parameters of import definition to be provided at runtime
     :type mapping_params: dict, option
-    :param base_url: Base URL for all API requests
-    :type base_url: str
     :param post_body: Required body when executing an Anaplan action
     :type post_body: dict
     """
+
     _action_type: dict = {
         "112": "/imports/",
         "116": "/exports/",
         "117": "/actions/",
-        "118": "/processes/"
+        "118": "/processes/",
     }
+
+    _handler: RequestHandler = RequestHandler(AnaplanVersion().base_url)
     _authorization: str
-    workspace: str
-    model: str
-    action_id: str
-    retry_count: int
-    mapping_params: Optional[dict]
+    _workspace: str
+    _model: str
+    _action_id: str
+    _retry_count: int
+    _mapping_params: Optional[dict]
+    post_body = {"localeName": "en_US"}
 
-    base_url = f"https://api.anaplan.com/{AnaplanVersion.major()}/{AnaplanVersion.minor()}/workspaces/"
-    post_body = {
-        "localeName": "en_US"
-    }
+    def __init__(
+        self,
+        conn: AnaplanConnection,
+        action_id: str,
+        retry_count: int,
+        mapping_params: Optional[dict],
+    ):
+        #self._authorization = conn.authorization.token_value
+        self._authorization = conn.authorization._auth_token._token_value
+        self._workspace = conn.workspace
+        self._model = conn.model
+        self._action_id = action_id
+        self._retry_count = retry_count
+        self._mapping_params = mapping_params
 
-    def __init__(self, conn: AnaplanConnection, action_id: str, retry_count: int, mapping_params: Optional[dict]):
-        self._authorization = conn.get_auth().get_auth_token()
-        self.workspace = conn.get_workspace()
-        self.model = conn.get_model()
-        self.action_id = action_id
-        self.retry_count = retry_count
-        self.mapping_params = mapping_params
+    @property
+    def handler(self) -> RequestHandler:
+        """Get the post body for API requests"""
+        return self._handler
 
-    def get_url(self) -> str:
-        """ Get the Base URL """
-        return self.base_url
-
-    def get_body(self) -> dict:
-        """ Get the post body for API requests """
-        return self.post_body
-
-    def get_authorization(self) -> str:
-        """ Get the authorization token for API requests"""
+    @property
+    def authorization(self) -> str:
+        """Get the authorization token for API requests"""
         return self._authorization
 
-    def get_workspace(self) -> str:
-        """ Get the Anaplan workspace ID """
-        return self.workspace
+    @property
+    def workspace(self) -> str:
+        """Get the Anaplan workspace ID"""
+        return self._workspace
 
-    def get_model(self) -> str:
-        """ Get the Anaplan model IDn"""
-        return self.model
+    @property
+    def model(self) -> str:
+        """Get the Anaplan model IDn"""
+        return self._model
 
-    def get_action(self) -> str:
-        """ Get the Anaplan action ID """
-        return self.action_id
+    @property
+    def action_id(self) -> str:
+        """Get the Anaplan action ID"""
+        return self._action_id
 
-    def get_retry(self) -> int:
-        """ Get the retry count """
-        return self.retry_count
+    @property
+    def retry_count(self) -> int:
+        """Get the retry count"""
+        return self._retry_count
 
-    def get_mapping_params(self) -> dict:
-        """ If defined, get the mapping parameters """
-        if len(self.mapping_params) > 0:
-            return self.mapping_params
+    @property
+    def mapping_params(self) -> dict:
+        """If defined, get the mapping parameters"""
+        if len(self._mapping_params) > 0:
+            return self._mapping_params
         else:
             raise MappingParameterError("Unable to return empty mapping parameters.")
 
     def execute(self) -> TaskResponse:
-        """ Triggers the specified action
+        """Triggers the specified action
 
         :return: TaskResponse object with the details of the completed action
         """
         authorization = self._authorization
+
         post_header = {
-            'Authorization': authorization,
-            'Content-Type': 'application/json'
+            "Authorization": authorization,
+            "Content-Type": "application/json",
         }
 
-        url = ""
+        if self._action_id[:3] not in self._action_type:
+            raise UnknownTaskTypeError(
+                f"Provided action ID {self._action_id} does not match any know action type"
+            )
 
-        if self.action_id[:3] in self._action_type:
-            url = ''.join(
-                [self.base_url, self.workspace, "/models/", self.model, self._action_type[self.action_id[:3]],
-                 self.action_id, "/tasks"])
-        if url != "":
-            task_id = self.post_task(url, post_header)
-            return self.check_status(url, task_id)
-        else:
-            raise UnknownTaskTypeError("Provided action ID does not correspond to valid action type.")
+        endpoint = (
+            f"workspaces/{self._workspace}/models/{self._model}"
+            f"{self._action_type[self._action_id[:3]]}{self._action_id}/tasks"
+        )
+
+        task_id = self.post_task(endpoint, post_header)
+        return self.check_status(endpoint, task_id)
 
     def post_task(self, url: str, post_header: dict) -> str:
-        """ Responsible for POSTing the to the Anaplan model
+        """Responsible for POSTing the to the Anaplan model
 
         :param url: URL for the action task
         :type url: str
@@ -135,22 +150,31 @@ class Action(object):
         sleep_time = 10
         run_action = None
 
-        while not run_action:
+        while state < self.retry_count:
             try:
-                run_action = requests.post(url, headers=post_header, json=self.post_body, timeout=(5, 30))
-            except (HTTPError, ConnectionError, SSLError, Timeout, ConnectTimeout, ReadTimeout) as e:
+                run_action = self._handler.make_request(
+                    url, "POST", data=json.dumps(self.post_body), headers=post_header
+                )
+            except Exception as e:
                 logger.error(f"Error running action {e}", exc_info=True)
-            if run_action.status_code != 200 and state < self.retry_count:
-                logger.debug(f"Request failed, waiting {sleep_time} seconds before retrying.")
-                sleep(sleep_time)
-                state += 1
-                sleep_time *= 1.5
+            if run_action.status_code == 200:
+                break
+            logger.debug(
+                f"Request failed, waiting {sleep_time} seconds before retrying."
+            )
+            state += 1
+            sleep_time *= 1.5
+            sleep(sleep_time)
 
-        if state < self.retry_count:
-            task_id = json.loads(run_action.text)
-            if 'task' in task_id:
-                if 'taskId' in task_id['task']:
-                    return task_id['task']['taskId']
+        run_action = run_action.json()
+
+        if state > self.retry_count:
+            raise RequestFailedError(f"Unable to execute {self.action_id}")
+
+        if "task" not in run_action or "taskId" not in run_action["task"]:
+            raise ValueError("Unable to fetch task ID.")
+
+        return run_action["task"]["taskId"]
 
     def check_status(self, url: str, task_id: str) -> TaskResponse:
         """
@@ -163,27 +187,30 @@ class Action(object):
 
         authorization = self._authorization
         post_header = {
-            'Authorization': authorization,
-            'Content-Type': 'application/json'
+            "Authorization": authorization,
+            "Content-Type": "application/json",
         }
         status = ""
-        status_url = ''.join([url, "/", task_id])
-        #print("checking status")
-        #print(url)
-        #print(task_id)
+        status_url = f"{url}/{task_id}"
+
+        logger.debug("Checking task status.")
+
         while True:
             try:
-                get_status = json.loads(requests.get(status_url, headers=post_header, timeout=(5, 30)).text)
-                #print(get_status)
-            except (HTTPError, ConnectionError, SSLError, Timeout, ConnectTimeout, ReadTimeout) as e:
+                get_status = self._handler.make_request(
+                    status_url, "GET", headers=post_header
+                ).json()
+            except Exception as e:
                 logger.error(f"Error getting result for task {e}", exc_info=True)
                 raise Exception(f"Error getting result for task {e}")
-            #print("going to check the JSON for status")
-            if 'task' in get_status:
-                if 'taskState' in get_status['task']:
-                    status = get_status['task']['taskState']
+
+            if "task" in get_status and "taskState" in get_status["task"]:
+                status = get_status["task"]["taskState"]
+
             if status == "COMPLETE":
-                results = get_status['task']
+                results = get_status["task"]
+                logger.info("Task completed")
                 break
-            sleep(1)  # Wait 1 seconds before continuing loop
-        return TaskResponse(results=results, url=status_url,jsongot=results)
+            sleep(1)  # Wait 1 second before continuing loop
+
+        return TaskResponse(results, status_url)
